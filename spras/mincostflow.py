@@ -111,7 +111,6 @@ class MinCostFlow (PRM):
         if capacity is not None:
             command.extend(['--capacity', str(capacity)])
 
-        # choosing to run in docker or singularity container
         container_suffix = "mincostflow"
 
         # constructs a docker run call
