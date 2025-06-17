@@ -15,7 +15,6 @@ OUT_DIR = TEST_DIR / 'output'
 EXPECTED_DIR = TEST_DIR / 'expected'
 
 INPUT_PPI = IN_DIR / 'capdsd-ppi.txt'
-INPUT_PPIP = IN_DIR / 'capdsd-ppip.txt'
 
 OUT_FILE = OUT_DIR / 'output.txt'
 EXPECTED_FILE = EXPECTED_DIR / 'capdsd-matrix-expected.txt'
@@ -29,7 +28,6 @@ class TestCapDSD:
         # Only include required arguments
         CapDSD.run(
             ppi=INPUT_PPI,
-            ppip=INPUT_PPIP,
             output_file=OUT_FILE
         )
         assert OUT_FILE.exists()
@@ -41,7 +39,6 @@ class TestCapDSD:
         with pytest.raises(ValueError):
             # No PPI
             CapDSD.run(
-                ppip=INPUT_PPIP,
                 output_file=OUT_FILE
             )
 
@@ -53,7 +50,6 @@ class TestCapDSD:
         # Only include required arguments and run with Singularity
         CapDSD.run(
             ppi=INPUT_PPI,
-            ppip=INPUT_PPIP,
             output_file=OUT_FILE,
             container_framework="singularity")
         assert OUT_FILE.exists()
