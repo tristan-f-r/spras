@@ -2,6 +2,7 @@ import os
 import platform
 import re
 import subprocess
+from collections import OrderedDict
 from pathlib import Path, PurePath, PurePosixPath
 from typing import Iterator, List, Optional, Tuple, Union
 
@@ -69,55 +70,73 @@ def download_gcs(gcs_path: str, local_path: str, is_dir: bool):
 
 def upload_gcs(local_path: str, gcs_path: str, is_dir: bool):
     # check if path exists in cloud storage
-    exists = len(subprocess.run(f'gcloud storage ls {gcs_path}', shell=True, capture_output=True, text=True).stdout)
+    exists = len(subprocess.run(['gcloud', 'storage', 'ls', gcs_path], shell=True, capture_output=True, text=True).stdout)
     # if path exists rsync
     if exists > 0:
-        cmd = 'gcloud storage rsync --checksums-only'
+        cmd = ['gcloud', 'storage', 'rsync', '--checksums-only']
     # if directory is empty
     elif exists == 0 and len(os.listdir(local_path)) == 0:
         # create a temporary file because GCS will not recognize empty directories
         Path(Path(local_path)/'gcs_temp.txt').touch()
         # copy path to cloud storage
-        cmd = 'gcloud storage cp -c'
+        cmd = ['gcloud', 'storage', 'cp', '-c']
     # else copy path to cloud storage
     else:
-        cmd = 'gcloud storage cp -c'
+        cmd = ['gcloud', 'storage', 'cp', '-c']
     # check if directory
     if is_dir:
-        cmd = cmd + ' -r'
-    cmd = cmd + ' ' + str(Path(local_path).resolve()) + ' ' + gcs_path
+        cmd.append(' -r')
+    cmd.extend([str(Path(local_path).resolve()), gcs_path])
 
     print(cmd)
     # run command
     subprocess.run(cmd, shell=True)
 
 
-def prepare_dsub_cmd(flags: dict[str, str | list[str]]):
+def prepare_dsub_cmd(flags: dict[str, str | list[str]], local: bool, regions='us-central1') -> list[str]:
+    """
+    Creates a dsub command to submit jobs with.
+    @param flags: the flags to incorporate
+    @param local: whether to run dsub locally (using Docker)
+    @param regions: the region(s) to run dsub (which matters when local is False)
+    @returns: a command formatted as a list to be run with `subprocess` (or equivalent)
+    """
     # set constant flags
-    dsub_command = 'dsub'
-    flags['provider'] = 'google-cls-v2'
-    flags['regions'] = 'us-central1'
-    flags['user-project'] = os.getenv('GOOGLE_PROJECT')
-    flags['project'] = os.getenv('GOOGLE_PROJECT')
+    dsub_command = ['dsub']
     flags['network'] = 'network'
     flags['subnetwork'] = 'subnetwork'
-    flags['service-account'] = subprocess.run(['gcloud', 'config', 'get-value', 'account'], capture_output=True, text=True).stdout.replace('\n', '')
+    flags['regions'] = regions
+
+    # set cloud flags
+    flags['provider'] = 'local' if local else 'google-cls-v2'
+    if not local:
+        google_project = os.getenv('GOOGLE_PROJECT')
+        if not google_project:
+            raise RuntimeError("The environment variable 'GOOGLE_PROJECT' was not specified, which is required when not running dsub locally.")
+        flags['user-project'] = google_project
+        flags['project'] = google_project
+        flags['service-account'] = subprocess.run(['gcloud', 'config', 'get-value', 'account'], capture_output=True, text=True).stdout.replace('\n', '')
 
     # order flags according to flag_list
     flag_list = ["provider", "regions", "zones", "location", "user-project", "project", "network", "subnetwork", "service-account", "image", "env",
                  "logging", "input", "input-recursive", "mount", "output", "output-recursive", "command", "script"]
-    ordered_flags = {f:flags[f] for f in flag_list if f in flags.keys()}
+    ordered_flags = OrderedDict((f, flags[f]) for f in flag_list if f in flags.keys())
+
+    # quick check: were there any flags that aren't part of our flag_list?
+    other_flags = set(flags.keys()) - set(flag_list)
+    if len(other_flags) != 0:
+        raise RuntimeError(f"Unknown dsub flags were specified: {other_flags}")
 
     # iteratively add flags to the command
     for flag, value in ordered_flags.items():
         if isinstance(value, list):
             for f in value:
-                dsub_command = dsub_command + " --" + flag + " " + f
+                dsub_command.extend([f"--{flag}", f])
         else:
-            dsub_command = dsub_command + " --" + flag + " " + value
+            dsub_command.extend([f"--{flag}", value])
 
     # Wait for dsub job to complete
-    dsub_command = dsub_command + " --wait"
+    dsub_command.append("--wait")
     print(f"dsub command: {dsub_command}")
     return dsub_command
 
@@ -131,7 +150,7 @@ def env_to_items(environment: dict[str, str]) -> Iterator[str]:
 # TODO consider a better default environment variable
 # Follow docker-py's naming conventions (https://docker-py.readthedocs.io/en/stable/containers.html)
 # Technically the argument is an image, not a container, but we use container here.
-def run_container(framework: str, container_suffix: str, command: List[str], volumes: List[Tuple[PurePath, PurePath]], working_dir: str, environment: Optional[dict[str, str]] = None):
+def run_container(framework: str, container_suffix: str, command: List[str], volumes: List[Tuple[PurePath, PurePath]], working_dir: str, environment: Optional[dict[str, str]] = None, gsub_local=False):
     """
     Runs a command in the container using Singularity or Docker
     @param framework: singularity or docker
@@ -140,6 +159,7 @@ def run_container(framework: str, container_suffix: str, command: List[str], vol
     @param volumes: a list of volumes to mount where each item is a (source, destination) tuple
     @param working_dir: the working directory in the container
     @param environment: environment variables to set in the container
+    @param gsub_local: if true, runs gsub locally instead of in the cloud
     @return: output from Singularity execute or Docker run
     """
     normalized_framework = framework.casefold()
@@ -150,11 +170,11 @@ def run_container(framework: str, container_suffix: str, command: List[str], vol
     elif normalized_framework == 'singularity':
         return run_container_singularity(container, command, volumes, working_dir, environment)
     elif normalized_framework == 'dsub':
-        return run_container_dsub(container, command, volumes, working_dir, environment)
+        return run_container_dsub(container, command, volumes, working_dir, environment, local=gsub_local)
     else:
         raise ValueError(f'{framework} is not a recognized container framework. Choose "docker", "dsub", or "singularity".')
 
-def run_container_and_log(name: str, framework: str, container_suffix: str, command: List[str], volumes: List[Tuple[PurePath, PurePath]], working_dir: str, environment: Optional[dict[str, str]] = None):
+def run_container_and_log(name: str, framework: str, container_suffix: str, command: List[str], volumes: List[Tuple[PurePath, PurePath]], working_dir: str, environment: Optional[dict[str, str]] = None, gsub_local = False):
     """
     Runs a command in the container using Singularity or Docker with associated pretty printed messages.
     @param name: the display name of the running container for logging purposes
@@ -164,6 +184,7 @@ def run_container_and_log(name: str, framework: str, container_suffix: str, comm
     @param volumes: a list of volumes to mount where each item is a (source, destination) tuple
     @param working_dir: the working directory in the container
     @param environment: environment variables to set in the container
+    @param gsub_local: if true, runs gsub locally instead of in the cloud
     @return: output from Singularity execute or Docker run
     """
     if not environment:
@@ -171,7 +192,7 @@ def run_container_and_log(name: str, framework: str, container_suffix: str, comm
 
     print('Running {} on container framework "{}" on env {} with command: {}'.format(name, framework, list(env_to_items(environment)), ' '.join(command)), flush=True)
     try:
-        out = run_container(framework=framework, container_suffix=container_suffix, command=command, volumes=volumes, working_dir=working_dir, environment=environment)
+        out = run_container(framework=framework, container_suffix=container_suffix, command=command, volumes=volumes, working_dir=working_dir, environment=environment, gsub_local=gsub_local)
         if out is not None:
             if isinstance(out, list):
                 out = ''.join(out)
@@ -405,13 +426,14 @@ def prepare_volume(filename: Union[str, PurePath], volume_base: Union[str, PureP
     return (src, dest), container_filename
 
 
-def run_container_dsub(container: str, command: List[str], volumes: List[Tuple[PurePath, PurePath]], working_dir: str, environment: Optional[dict[str, str]] = None) -> str:
+def run_container_dsub(container: str, command: List[str], volumes: List[Tuple[PurePath, PurePath]], working_dir: str, environment: Optional[dict[str, str]] = None, local: bool = False) -> str:
     """
     Runs a command in the Google Cloud using dsub.
     @param container: name of the container in the Google Cloud Container Registry
     @param command: command to run
     @param volumes: a list of volumes to mount where each item is a (source, destination) tuple
     @param working_dir: the working directory in the container
+    @param local: whether to run dsub locally (useful for testing)
     @param environment: environment variables to set in the container
     @return: path of output from dsub
     """
@@ -467,7 +489,7 @@ def run_container_dsub(container: str, command: List[str], volumes: List[Tuple[P
     flags['logging'] = workspace_bucket + '/dsub/'
 
     # Create dsub command
-    dsub_command = prepare_dsub_cmd(flags)
+    dsub_command = prepare_dsub_cmd(flags, local)
 
     # Run dsub as subprocess
     subprocess.run(dsub_command, shell=True)
