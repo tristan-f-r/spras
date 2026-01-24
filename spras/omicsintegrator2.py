@@ -1,8 +1,9 @@
+import time
 from pathlib import Path
 from typing import Optional
 
 import pandas as pd
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from spras.config.container_schema import ProcessedContainerSettings
 from spras.config.util import CaseInsensitiveEnum
@@ -46,8 +47,8 @@ class OmicsIntegrator2Params(BaseModel):
         "all" = connect to all nodes in the interactome.
     """
 
-    seed: Optional[int] = None
-    "The random seed to use for this run."
+    seed: int = Field(default_factory=lambda: int(time.time() * 1000))
+    "The randomness seed to use. Defaults to the UNIX millisecond timestamp."
 
     model_config = ConfigDict(extra='forbid', use_attribute_docstrings=True)
 

@@ -1,7 +1,8 @@
+import time
 from pathlib import Path
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from spras.config.container_schema import ProcessedContainerSettings
 from spras.config.util import CaseInsensitiveEnum
@@ -70,8 +71,8 @@ class OmicsIntegrator1Params(BaseModel):
     random_terminals: int = 0
     "How many times to apply the given prizes to random nodes in the interactome"
 
-    seed: Optional[int] = None
-    "The randomness seed to use."
+    seed: int = Field(default_factory=lambda: int(time.time() * 1000))
+    "The randomness seed to use. Defaults to the UNIX millisecond timestamp."
 
     w: float
     "Float that affects the number of connected components, with higher values leading to more components"
