@@ -57,11 +57,12 @@ class TestNetMix2:
     def test_nm2_singularity(self):
         OUT_FILE.unlink(missing_ok=True)
         NetMix2.run(
-            network=TEST_DIR / 'input' / 'network-basic.txt',
-            scores=TEST_DIR / 'input' / 'scores-basic.txt',
+            {"network": TEST_DIR / 'input' / 'network-basic.txt',
+             "scores": TEST_DIR / 'input' / 'scores-basic.txt'},
             output_file=OUT_FILE,
             # There are notably less than 175,000 edges in our test network,
             # so this is required.
-            num_edges=1
+            args=NetMix2Params(num_edges=1),
+            container_settings=config.config.container_settings
         )
         assert OUT_FILE.exists(), 'Output file was not written'
