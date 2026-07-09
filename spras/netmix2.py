@@ -10,8 +10,7 @@ from spras.interactome import (
     reinsert_direction_col_undirected,
 )
 from spras.prm import PRM
-from spras.secrets import gurobi
-from spras.util import add_rank_column, duplicate_edges
+from spras.util import add_rank_column, duplicate_edges, prize_to_pval
 
 __all__ = ['NetMix2']
 
@@ -23,8 +22,10 @@ class NetMix2Params(BaseModel):
     density: float = 0.05
     """The minimum edge density of the altered subnetwork."""
 
-class NetMix2(PRM):
+#class NetMix2(PRM):
+class NetMix2(PRM[NetMix2Params]):
     required_inputs = ['network', 'scores']
+    dois = ['10.1089/cmb.2022.0336']
 
     @staticmethod
     def generate_inputs(data: Dataset, filename_map):
@@ -41,7 +42,14 @@ class NetMix2(PRM):
             node_df = data.get_node_columns(['prize'])
         else:
             raise ValueError("Node prizes are required for NetMix2.")
-        node_df.to_csv(filename_map['scores'], index=False, columns=['prize', 'NODEID'], header=False, sep='\t')
+
+        # NetMix2 requires scores in (0, 1] where lower is better, but SPRAS prizes are arbitrary weights.
+        # Convert prizes to scores using 10^(-prize): higher prize -> lower score (more significant).
+        # This is not a true p-value — it is just a number in (0, 1] for NetMix2's input format.
+        # Original (raw prizes, wrong column order, not valid scores for NetMix2):
+        # node_df.to_csv(filename_map['scores'], index=False, columns=['prize', 'NODEID'], header=False, sep='\t')
+        node_df['score'] = node_df['prize'].apply(prize_to_pval)
+        node_df.to_csv(filename_map['scores'], index=False, columns=['NODEID', 'score'], header=False, sep='\t')
 
         edges_df = data.get_interactome()
         edges_df = convert_directed_to_undirected(edges_df)
@@ -49,6 +57,8 @@ class NetMix2(PRM):
 
     @staticmethod
     def run(inputs, output_file, args, container_settings=None):
+        NetMix2.validate_required_inputs(inputs)
+        from spras.secrets import gurobi
         gurobi_path = gurobi()
         if not gurobi_path:
             raise RuntimeError("gurobi license path is not present.\n" + \
@@ -64,7 +74,8 @@ class NetMix2(PRM):
         bind_path, scores_file = prepare_volume(inputs["scores"], work_dir, container_settings)
         volumes.append(bind_path)
 
-        bind_path, license_file = prepare_volume(inputs["gurobi_path"], work_dir, container_settings)
+        #bind_path, license_file = prepare_volume(inputs["gurobi_path"], work_dir, container_settings)
+        bind_path, license_file = prepare_volume(gurobi_path, work_dir, container_settings)  #directory in config.yaml under "secrets:" and the directory of your gurobi.lic file should be in the same directory as the gurobi license (gurobi.lic)
         volumes.append(bind_path)
 
         out_dir = Path(output_file).parent
