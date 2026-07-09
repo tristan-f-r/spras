@@ -47,9 +47,8 @@ SPRAS contributions:
    or `10 minutes to pandas
    <https://pandas.pydata.org/pandas-docs/stable/user_guide/10min.html>`__
 
-
-
-   Before getting started, verify your environment is ready with these checks:
+Before getting started, verify your environment is ready with these
+checks:
 
 .. code:: bash
 
@@ -58,6 +57,9 @@ SPRAS contributions:
    docker login
    conda --version
    git --version
+   python -c "import spras; print('SPRAS import successful')"
+
+If the commands above run without errors, your environment is ready.
 
 *************************************************
  Step 0: Fork the repository and create a branch
@@ -344,6 +346,13 @@ its contents before rerunning the Snakemake command.
  Step 5: Add Local Neighborhood to the tests
 *********************************************
 
+.. note::
+
+   These tests modify files in ``.github/workflows/``. If you push over
+   HTTPS using a Personal Access Token, make sure the token has
+   permission to modify GitHub Actions workflows. Otherwise, GitHub may
+   reject the push. SSH push works without this restriction.
+
 Add test functions to the test file ``test/test_ln.py``. This file
 already has existing tests to test the correctness of the Local
 Neighborhood implementation that was added to the Docker image. The new
@@ -429,16 +438,6 @@ branch and create a pull request. Make sure to commit all of the new and
 modified files and push them to the ``local-neighborhood`` branch on
 your fork.
 
-
-.. note::
-
-   If you are using HTTPS to push and your commit touches files in
-   ``.github/workflows/``, your PAT must have both ``repo`` and
-   ``workflow`` scopes. A PAT with ``repo`` scope only will be rejected
-   with a non-obvious error. SSH push works without this restriction.
-
-
-
 The SPRAS maintainers will review the pull request and provide feedback
 and suggested changes. If you are not already in communication with
 them, you can open a `GitHub issue
@@ -447,8 +446,6 @@ feedback. However, once the pull request has been approved, it will
 **not** be merged as usual. The pull request will be closed so that the
 ``main`` branch of the fork stays synchronized with the ``main`` branch
 of the main SPRAS repository.
-
-
 
 ***********************************************************************
  General steps for contributing a new pathway reconstruction algorithm
