@@ -153,3 +153,12 @@ pixi.lock
 # pixi environments
 .pixi
 *.egg-info
+
+# HTCondor logs
+htcondor/logs/
+*.err
+*.out
+*.log
+
+# Any sif files
+*.sif
