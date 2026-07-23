@@ -1,5 +1,6 @@
 import shutil
 from pathlib import Path
+from spras.secrets import gurobi
 
 import pytest
 
@@ -13,6 +14,10 @@ OUT_FILE = Path(TEST_DIR, 'output', 'nm2-output.txt')
 
 
 class TestNetMix2:
+    #testing the existence of the license for gurobi, which is required for NetMix2 to run
+    def test_gurobi_license(self):
+        assert gurobi() is not None, "Gurobi license not found."
+
     def test_nm2_required(self):
         OUT_FILE.unlink(missing_ok=True)
         # inputs must be a dict, not keyword args (consistent with other SPRAS wrappers)
