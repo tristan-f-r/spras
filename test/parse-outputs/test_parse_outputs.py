@@ -26,13 +26,13 @@ algorithms = {
     'bowtiebuilder': {},
     'responsenet': {},
     'netmix2': {
-        'dataset': Dataset({
-            'label': 'test_dataset',
-            'node_files': ['netmix2-dataset-prizes.txt', 'netmix2-dataset-sources.txt', 'netmix2-dataset-targets.txt'],
-            'edge_files': ['netmix2-dataset-network.txt'],
-            'other_files': [],
-            'data_dir': INDIR / 'dataset' / 'netmix2'
-        })
+        'dataset': Dataset(dataset_params=DatasetSchema(
+            label='test_dataset',
+            node_files=['netmix2-dataset-prizes.txt'],
+            edge_files=['netmix2-dataset-network.txt'],
+            other_files=[],
+            data_dir=INDIR / 'dataset' / 'netmix2'
+        ))
     },
     'strwr': {
         'threshold': 3,

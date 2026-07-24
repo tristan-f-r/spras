@@ -12,4 +12,5 @@ RUN COMMIT_SHA_NETMIX2=110954e27ec1911b6fe68b6a34352fecca494922 && \
 
 COPY requirements.txt .
 
-RUN pip install -r requirements.txt
+RUN echo "Cython<3" > /tmp/constraints.txt && \
+    PIP_CONSTRAINT=/tmp/constraints.txt pip install -r requirements.txt
