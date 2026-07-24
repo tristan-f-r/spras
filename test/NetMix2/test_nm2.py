@@ -1,11 +1,11 @@
 import shutil
 from pathlib import Path
-from spras.secrets import gurobi
 
 import pytest
 
 import spras.config.config as config
 from spras.netmix2 import NetMix2, NetMix2Params
+from spras.secrets import gurobi
 
 config.init_from_file("config/config.yaml")
 

@@ -148,7 +148,7 @@ algorithms:
         n: 1
 
   - name: "netmix2"
-    include: true
+    include: false
     runs:
       run1:
         num_edges: 100000
