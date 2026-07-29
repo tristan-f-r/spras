@@ -149,3 +149,12 @@ spras.sif
 licenses
 # Singularity cache
 unpacked
+
+# HTCondor logs
+htcondor/logs/
+*.err
+*.out
+*.log
+
+# Any sif files
+*.sif

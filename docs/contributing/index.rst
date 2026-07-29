@@ -47,6 +47,20 @@ SPRAS contributions:
    or `10 minutes to pandas
    <https://pandas.pydata.org/pandas-docs/stable/user_guide/10min.html>`__
 
+Before getting started, verify your environment is ready with these
+checks:
+
+.. code:: bash
+
+   docker --version
+   docker run hello-world
+   docker login
+   conda --version
+   git --version
+   python -c "import spras; print('SPRAS import successful')"
+
+If the commands above run without errors, your environment is ready.
+
 *************************************************
  Step 0: Fork the repository and create a branch
 *************************************************
@@ -202,8 +216,9 @@ and explore the nodes and interactome.
 .. code:: python
 
    > from spras.dataset import Dataset
-   > dataset_dict = {'label': 'data0', 'node_files': ['node-prizes.txt', 'sources.txt', 'targets.txt'], 'edge_files': ['network.txt'], 'other_files': [], 'data_dir': 'input'}
-   > data = Dataset(dataset_dict)
+   > from spras.config.dataset import DatasetSchema
+   > dataset_schema = DatasetSchema(label='data0', node_files=['node-prizes.txt', 'sources.txt', 'targets.txt'], edge_files=['network.txt'], other_files=[], data_dir='input')
+   > data = Dataset(dataset_schema)
    > data.node_table.head()
      NODEID  prize active sources targets
    0      C    5.7   True     NaN    True
@@ -285,14 +300,24 @@ U``.
  Step 4: Make the Local Neighborhood wrapper accessible through SPRAS
 **********************************************************************
 
-Import the new class ``LocalNeighborhood`` in ``spras/runner.py`` and
-add it to the ``algorithms`` dictionary so the wrapper functions can be
-accessed. Add an entry for Local Neighborhood to the configuration file
-``config/config.yaml`` and set ``include: true``. As a convention,
-algorithm names are written in all lowercase without special characters.
-Local Neighborhood has no other parameters. Optionally set ``include:
-false`` for the other pathway reconstruction algorithms to make testing
-faster.
+Register the new algorithm by adding a single entry to the
+``ALGORITHM_REGISTRY`` dictionary in ``spras/config/util.py``. The entry
+maps the algorithm's lowercase name to a ``(module_path, class_name)``
+tuple that ``runner.py`` will load via ``importlib`` at startup:
+
+.. code:: python
+
+   ALGORITHM_REGISTRY: dict[str, tuple[str, str]] = {
+       ...
+       "localneighborhood": ("spras.local_neighborhood", "LocalNeighborhood"),
+   }
+
+As a convention, algorithm names are written in all lowercase without
+special characters. The same name is used as the key in the config file
+``config/config.yaml``. Add an entry for Local Neighborhood there and
+set ``include: true``. Local Neighborhood has no other parameters.
+Optionally set ``include: false`` for the other pathway reconstruction
+algorithms to make testing faster.
 
 The config file has an option ``owner`` under the
 ``containers.registry`` settings that controls which Docker Hub account
@@ -330,6 +355,13 @@ its contents before rerunning the Snakemake command.
 *********************************************
  Step 5: Add Local Neighborhood to the tests
 *********************************************
+
+.. note::
+
+   These tests modify files in ``.github/workflows/``. If you push over
+   HTTPS using a Personal Access Token, make sure the token has
+   permission to modify GitHub Actions workflows. Otherwise, GitHub may
+   reject the push. SSH push works without this restriction.
 
 Add test functions to the test file ``test/test_ln.py``. This file
 already has existing tests to test the correctness of the Local
@@ -448,8 +480,10 @@ of the main SPRAS repository.
    ``required_input`` files and the ``generate_inputs``, ``run``, and
    ``parse_output`` functions
 
-#. Import the new class in ``spras/runner.py`` and add it to the
-   ``algorithms`` dictionary so the wrapper functions can be accessed
+#. Register the new algorithm in ``ALGORITHM_REGISTRY`` in
+   ``spras/config/util.py`` by adding one entry ``"<name>":
+   ("spras.<module>", "<ClassName>")``; no changes to
+   ``spras/runner.py`` are needed
 
 #. Document the usage of the Docker wrapper and the assumptions made
    when implementing the wrapper

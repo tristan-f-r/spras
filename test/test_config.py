@@ -67,6 +67,9 @@ def get_test_config():
                 "include": True,
                 "runs": {
                     "strings": {"dummy_mode": ["terminals", "others"], "b": 3},
+                    # We include slightly absurd numbers here for b
+                    # to test https://github.com/Reed-CompBio/spras/issues/484.
+                    "scientific": {"dummy_mode": "terminals", "b": ["1e-2", "1e2", "+5E+2"]},
                     # spacing in np.linspace is on purpose
                     "singleton_string_np_linspace": {"dummy_mode": "terminals", "b": "np.linspace(0,    5,2,)"},
                     "str_array_np_logspace": {"dummy_mode": ["others", "all"], "g": "np.logspace(1,1)"}
@@ -218,6 +221,39 @@ class TestConfig:
         config.init_global(test_config)
         assert (config.config.container_settings.prefix == DEFAULT_CONTAINER_PREFIX)
 
+    def test_config_container_images(self):
+        test_config = get_test_config()
+
+        # Default: no images key --> empty dict, image_override is None
+        config.init_global(test_config)
+        assert config.config.container_settings.images == {}
+        assert config.config.container_settings.image_override is None
+
+        # Local .sif paths are stored as-is and signal HTCondor transfer via get_algorithm_image
+        test_config["containers"]["images"] = {
+            "pathlinker": "images/foo.sif",
+            "omicsintegrator1": "images/bar.sif",
+        }
+        config.init_global(test_config)
+        assert config.config.container_settings.images == {
+            "pathlinker": "images/foo.sif",
+            "omicsintegrator1": "images/bar.sif",
+        }
+        # Unconfigured algorithm → no .sif override, get_algorithm_image returns None
+        assert not config.config.container_settings.images.get("responsenet", "").endswith(".sif")
+
+        # Non .sif image reference override (e.g. pinning a different tag) is stored as-is
+        test_config["containers"]["images"] = {"pathlinker": "pathlinker:v1234"}
+        config.init_global(test_config)
+        images = config.config.container_settings.images
+        assert images.get("pathlinker") == "pathlinker:v1234"
+
+    def test_config_container_images_invalid_algorithm(self):
+        test_config = get_test_config()
+        test_config["containers"]["images"] = {"typo_algo": "some:image"}
+        with pytest.raises(ValueError, match="Unknown algorithm name 'typo_algo'"):
+            config.init_global(test_config)
+
     def test_error_dataset_label(self):
         test_config = get_test_config()
         error_test_dicts = [{"label": "test$"}, {"label": "@test'"}, {"label": "[test]"}, {"label": "test-test"},
@@ -261,6 +297,12 @@ class TestConfig:
         value_test_util('omicsintegrator2', 'strings', OmicsIntegrator2Params, [
             OmicsIntegrator2Params(dummy_mode=DummyMode.terminals, b=3),
             OmicsIntegrator2Params(dummy_mode=DummyMode.others, b=3)
+        ])
+
+        value_test_util('omicsintegrator2', 'scientific', OmicsIntegrator2Params, [
+            OmicsIntegrator2Params(dummy_mode=DummyMode.terminals, b=500),
+            OmicsIntegrator2Params(dummy_mode=DummyMode.terminals, b=100),
+            OmicsIntegrator2Params(dummy_mode=DummyMode.terminals, b=0.01)
         ])
 
         value_test_util('omicsintegrator2', 'singleton_string_np_linspace', OmicsIntegrator2Params, [
